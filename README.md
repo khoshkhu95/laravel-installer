@@ -12,30 +12,8 @@
 6. ساخت حساب مدیر سیستم
 7. قفل شدن نصب‌کننده و اتمام نصب
 
-## نصب پکیج (برای استفاده به عنوان composer package محلی)
 
-اگر این پکیج را در ریپازیتوری خودتان publish نکرده‌اید، آن را به صورت یک `path repository` در پروژه اصلی اضافه کنید:
-
-```json
-// composer.json پروژه اصلی
-"repositories": [
-    {
-        "type": "path",
-        "url": "packages/taha20/laravel-installer"
-    }
-],
-"require": {
-    "taha20/laravel-installer": "*"
-}
-```
-
-سپس پوشه این پکیج را داخل `packages/taha20/laravel-installer` پروژه اصلی کپی کنید و دستور زیر را اجرا کنید:
-
-```bash
-composer require taha20/laravel-installer:*
-```
-
-اگر پکیج را روی Packagist یا یک ریپازیتوری گیت‌هاب خصوصی منتشر کردید، کافیست به شکل معمول نصب شود:
+دستور نصب پکیج
 
 ```bash
 composer require taha20/laravel-installer
@@ -70,15 +48,6 @@ php artisan vendor:publish --tag=installer-lang
 ```
 https://your-domain.com/installer
 ```
-
-## ریست کردن نصب (فقط محیط توسعه)
-
-```bash
-php artisan installer:reset
-```
-
-این دستور فایل `storage/installed.lock` را حذف می‌کند تا بتوانید ویزارد نصب را دوباره اجرا کنید.
-هرگز این دستور را روی سرور تولید (production) در دسترس کاربر نگذارید.
 
 ## اجرای تکه‌تکه (Chunked) مایگریشن‌ها برای جلوگیری از Timeout
 
@@ -117,10 +86,6 @@ php artisan installer:reset
 
 - بعد از اتمام نصب، حتماً دسترسی به مسیر `/installer` از طریق وب‌سرور (Nginx/Apache) هم مسدود شود؛
   میدلور `RedirectIfInstalled` این کار را در سطح لاراول انجام می‌دهد اما یک لایه امنیتی اضافه در وب‌سرور توصیه می‌شود.
-- فایل `storage/installed.lock` را در `.gitignore` قرار ندهید اگر می‌خواهید بعد از هر دیپلوی نصب مجدد لازم نباشد؛
-  در غیر این صورت هر بار که پروژه را کلون می‌کنید، نصب‌کننده دوباره فعال می‌شود (رفتار مطلوب برای فروش پروژه به مشتری جدید).
-- مقادیر حساس مثل رمز عبور دیتابیس هرگز نباید در session قرار بمانند؛ در این پیاده‌سازی بلافاصله
-  بعد از نوشتن در `.env` می‌توانید `Session::forget('installer.database')` را نیز اضافه کنید.
 
 ## ساختار پوشه‌ها
 
