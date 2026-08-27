@@ -25,5 +25,7 @@
                 "Taha20\\LaravelInstaller\\InstallerServiceProvider"
             ]
         }
-    }
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
 }

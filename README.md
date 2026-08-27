@@ -21,24 +21,24 @@
 "repositories": [
     {
         "type": "path",
-        "url": "packages/yourvendor/laravel-installer"
+        "url": "packages/taha20/laravel-installer"
     }
 ],
 "require": {
-    "yourvendor/laravel-installer": "*"
+    "taha20/laravel-installer": "*"
 }
 ```
 
-سپس پوشه این پکیج را داخل `packages/yourvendor/laravel-installer` پروژه اصلی کپی کنید و دستور زیر را اجرا کنید:
+سپس پوشه این پکیج را داخل `packages/taha20/laravel-installer` پروژه اصلی کپی کنید و دستور زیر را اجرا کنید:
 
 ```bash
-composer require yourvendor/laravel-installer:*
+composer require taha20/laravel-installer:*
 ```
 
 اگر پکیج را روی Packagist یا یک ریپازیتوری گیت‌هاب خصوصی منتشر کردید، کافیست به شکل معمول نصب شود:
 
 ```bash
-composer require yourvendor/laravel-installer
+composer require taha20/laravel-installer
 ```
 
 ## انتشار فایل‌های قابل سفارشی‌سازی
@@ -58,7 +58,7 @@ php artisan vendor:publish --tag=installer-lang
 // bootstrap/app.php
 ->withMiddleware(function (Middleware $middleware) {
     $middleware->web(append: [
-        \YourVendor\LaravelInstaller\Http\Middleware\RedirectIfNotInstalled::class,
+        \Taha20\LaravelInstaller\Http\Middleware\RedirectIfNotInstalled::class,
     ]);
 })
 ```
