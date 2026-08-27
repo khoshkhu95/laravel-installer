@@ -1,0 +1,29 @@
+{
+    "name": "taha20/laravel-installer",
+    "description": "A web-based step-by-step installer wizard for Laravel applications",
+    "keywords": [
+        "laravel",
+        "installer",
+        "wizard",
+        "setup"
+    ],
+    "license": "MIT",
+    "type": "library",
+    "require": {
+        "php": "^8.2",
+        "illuminate/support": "^10.0|^11.0|^12.0|^13.0",
+        "illuminate/console": "^10.0|^11.0|^12.0|^13.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Taha20\\LaravelInstaller\\": "src/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Taha20\\LaravelInstaller\\InstallerServiceProvider"
+            ]
+        }
+    }
+}
