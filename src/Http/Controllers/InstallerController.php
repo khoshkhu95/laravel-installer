@@ -30,7 +30,7 @@ class InstallerController extends Controller
         $phpOk = version_compare(PHP_VERSION, $requiredPhp, '>=');
 
         $extensions = collect(config('installer.requirements.extensions'))
-            ->mapWithKeys(fn ($ext) => [$ext => extension_loaded($ext)]);
+            ->mapWithKeys(fn($ext) => [$ext => extension_loaded($ext)]);
 
         $allOk = $phpOk && ! $extensions->contains(false);
 
@@ -124,6 +124,33 @@ class InstallerController extends Controller
     }
 
     /**
+     * جمع‌آوری تمام مسیرهای مایگریشن پروژه: مسیر پیش‌فرض database/migrations،
+     * مسیرهای دستی تعریف‌شده در کانفیگ (migration_paths)، و مسیرهای ماژول‌ها که
+     * از روی الگوهای glob کانفیگ (migration_module_globs) به‌صورت خودکار کشف می‌شوند.
+     *
+     * این متد لازم است چون در حالت اجرای تکه‌تکه (AJAX)، مستقیم با Migrator کار
+     * می‌کنیم و از دستور معمول `artisan migrate` که مسیرهای ثبت‌شده توسط
+     * Service Providerهای ماژول‌ها را خودکار می‌شناسد، استفاده نمی‌کنیم؛
+     * بنابراین باید مسیرها را صریحاً خودمان پیدا کنیم.
+     */
+    protected function resolveMigrationPaths(): array
+    {
+        $paths = config('installer.migration_paths', [database_path('migrations')]);
+
+        foreach (config('installer.migration_module_globs', []) as $pattern) {
+            $matches = glob($pattern, GLOB_ONLYDIR) ?: [];
+            $paths = array_merge($paths, $matches);
+        }
+
+        // فقط مسیرهایی که واقعاً وجود دارند و پوشه هستند نگه داشته می‌شوند
+        return collect($paths)
+            ->filter(fn($path) => File::isDirectory($path))
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    /**
      * تست خام اتصال به دیتابیس بدون دست‌کاری کانفیگ سراسری
      */
     protected function testDatabaseConnection(array $data): void
@@ -209,7 +236,7 @@ class InstallerController extends Controller
                 $migrator->getRepository()->createRepository();
             }
 
-            $files = $migrator->getMigrationFiles(database_path('migrations'));
+            $files = $migrator->getMigrationFiles($this->resolveMigrationPaths());
             $ran = $migrator->getRepository()->getRan();
 
             // فقط فایل‌هایی که هنوز اجرا نشده‌اند نگه داشته می‌شوند؛ ترتیب فایل‌ها حفظ می‌شود
@@ -318,7 +345,7 @@ class InstallerController extends Controller
     /**
      * مرحله ۶: ذخیره ادمین و اتمام نصب (ساخت فایل قفل)
      */
-     public function adminStore(Request $request)
+    public function adminStore(Request $request)
     {
         $data = $request->validate([
             'name' => 'required|string|max:255',
@@ -344,6 +371,8 @@ class InstallerController extends Controller
         Artisan::call('route:cache');
 
         Session::forget('installer');
+
+        $this->updateEnvFile(['SESSION_DRIVER' => 'database']);
 
         return redirect()->route('installer.finish');
     }
