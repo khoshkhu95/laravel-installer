@@ -450,9 +450,9 @@ class InstallerController extends Controller
         ]);
 
         try {
-            $userModel::create($payload);
+            $user = $userModel::create($payload);
             if (method_exists($userModel,'assignRole')){
-                $userModel->assignRole(config('installer.admin_role_name'));
+                $user->assignRole(config('installer.admin_role_name'));
             }
         } catch (QueryException $e) {
             return back()->withInput()->withErrors([
@@ -481,7 +481,7 @@ class InstallerController extends Controller
             Artisan::call('route:clear');
         }
 
-        Session::forget('installer');
+        Session::forget('installer.database');
 
         return redirect()->route('installer.finish');
     }
