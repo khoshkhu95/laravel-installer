@@ -4,6 +4,7 @@ namespace Taha20\LaravelInstaller\Http\Controllers;
 
 use Illuminate\Routing\Controller;
 use Illuminate\Http\Request;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
@@ -30,7 +31,7 @@ class InstallerController extends Controller
         $phpOk = version_compare(PHP_VERSION, $requiredPhp, '>=');
 
         $extensions = collect(config('installer.requirements.extensions'))
-            ->mapWithKeys(fn($ext) => [$ext => extension_loaded($ext)]);
+            ->mapWithKeys(fn ($ext) => [$ext => extension_loaded($ext)]);
 
         $allOk = $phpOk && ! $extensions->contains(false);
 
@@ -144,20 +145,18 @@ class InstallerController extends Controller
 
         // فقط مسیرهایی که واقعاً وجود دارند و پوشه هستند نگه داشته می‌شوند
         return collect($paths)
-            ->filter(fn($path) => File::isDirectory($path))
+            ->filter(fn ($path) => File::isDirectory($path))
             ->unique()
             ->values()
             ->all();
     }
 
     /**
-     * تست خام اتصال به دیتابیس بدون دست‌کاری کانفیگ سراسری
+     * ساخت آرایه کانفیگ اتصال دیتابیس از روی داده‌های فرم (بدون وابستگی به .env)
      */
-    protected function testDatabaseConnection(array $data): void
+    protected function buildDatabaseConfigArray(array $data): array
     {
-        $connectionName = 'installer_test_connection';
-
-        $config = match ($data['db_connection']) {
+        return match ($data['db_connection']) {
             'sqlite' => [
                 'driver' => 'sqlite',
                 'database' => $data['db_database'],
@@ -172,8 +171,37 @@ class InstallerController extends Controller
                 'charset' => 'utf8mb4',
             ],
         };
+    }
 
-        config(["database.connections.{$connectionName}" => $config]);
+    /**
+     * تنظیم مقادیر دیتابیس به‌صورت صریح در کانفیگ runtime همین درخواست.
+     *
+     * نوشتن در فایل .env به‌تنهایی کافی نیست، چون لاراول تنظیمات دیتابیس را
+     * موقع بوت‌شدن (ابتدای همین درخواست) از .env خوانده و در حافظه نگه داشته؛
+     * config:clear فقط فایل کش را پاک می‌کند و روی مقادیر runtime همین درخواست
+     * تأثیری ندارد. برای همین باید کانکشن مقصد را همین‌جا صریحاً بازنویسی کنیم
+     * تا Migrator از مقدار درست (نه مقدار قدیمی/پیش‌فرض قبل از نصب) استفاده کند.
+     */
+    protected function applyRuntimeDatabaseConfig(array $db): string
+    {
+        $connectionName = $db['db_connection'];
+
+        config(["database.connections.{$connectionName}" => $this->buildDatabaseConfigArray($db)]);
+        config(['database.default' => $connectionName]);
+
+        DB::purge($connectionName);
+
+        return $connectionName;
+    }
+
+    /**
+     * تست خام اتصال به دیتابیس بدون دست‌کاری کانفیگ سراسری
+     */
+    protected function testDatabaseConnection(array $data): void
+    {
+        $connectionName = 'installer_test_connection';
+
+        config(["database.connections.{$connectionName}" => $this->buildDatabaseConfigArray($data)]);
         DB::purge($connectionName);
         DB::connection($connectionName)->getPdo();
         DB::purge($connectionName);
@@ -229,8 +257,12 @@ class InstallerController extends Controller
         Artisan::call('config:clear');
 
         try {
+            // نوشتن .env به‌تنهایی روی کانفیگ همین درخواست اثر نمی‌گذارد؛
+            // پس مقادیر دیتابیس را صریحاً در runtime همین درخواست هم ست می‌کنیم
+            $connectionName = $this->applyRuntimeDatabaseConfig($db);
+
             $migrator = app('migrator');
-            $migrator->setConnection($db['db_connection']);
+            $migrator->setConnection($connectionName);
 
             if (! $migrator->repositoryExists()) {
                 $migrator->getRepository()->createRepository();
@@ -282,8 +314,10 @@ class InstallerController extends Controller
         Session::put('installer.pending_migrations', $pending);
 
         try {
+            $connectionName = $this->applyRuntimeDatabaseConfig($db);
+
             $migrator = app('migrator');
-            $migrator->setConnection($db['db_connection']);
+            $migrator->setConnection($connectionName);
 
             // پاس دادن مسیر دقیق فایل (نه پوشه) باعث می‌شود Migrator فقط همین یکی را اجرا کند
             $migrator->run([$path]);
@@ -312,11 +346,15 @@ class InstallerController extends Controller
     {
         @set_time_limit(120);
 
-        if (! Session::has('installer.database')) {
+        $db = Session::get('installer.database');
+
+        if (! $db) {
             return response()->json(['message' => 'اطلاعات دیتابیس یافت نشد.'], 422);
         }
 
         try {
+            $this->applyRuntimeDatabaseConfig($db);
+
             if (config('installer.run_seeders')) {
                 Artisan::call('db:seed', ['--force' => true]);
             }
@@ -349,20 +387,32 @@ class InstallerController extends Controller
     {
         $data = $request->validate([
             'name' => 'required|string|max:255',
-            'email' => 'nullable|email',
-            'mobile' => 'required|string|min:11|max:11',
+            'email' => 'required|email',
             'password' => 'required|string|min:8|confirmed',
         ]);
 
         $userModel = config('installer.user_model');
 
-        $userModel::create([
+        // فیلدهای اضافی که پروژه مشخص کرده (برای ستون‌های NOT NULL سفارشی جدول users)
+        $extra = config('installer.admin_extra_fields', []);
+
+        if (is_callable($extra)) {
+            $extra = $extra();
+        }
+
+        $payload = array_merge($extra, [
             'name' => $data['name'],
             'email' => $data['email'],
-            'mobile' => $data['mobile'],
             'password' => Hash::make($data['password']),
-            'role' => 'admin',
         ]);
+
+        try {
+            $userModel::create($payload);
+        } catch (QueryException $e) {
+            return back()->withInput()->withErrors([
+                'admin' => $this->explainDatabaseError($e),
+            ]);
+        }
 
         // ساخت فایل قفل نصب
         File::put(config('installer.lock_file'), now()->toDateTimeString());
@@ -372,9 +422,38 @@ class InstallerController extends Controller
 
         Session::forget('installer');
 
-        $this->updateEnvFile(['SESSION_DRIVER' => 'database']);
-
         return redirect()->route('installer.finish');
+    }
+
+    /**
+     * تبدیل پیام خام خطای دیتابیس (مثل Integrity constraint violation) به یک
+     * پیام قابل‌فهم که مشخص می‌کند کدام ستون مشکل‌دار است و چطور رفعش کنیم.
+     */
+    protected function explainDatabaseError(QueryException $e): string
+    {
+        $raw = $e->getMessage();
+
+        // الگوی رایج MySQL: Column 'role_id' cannot be null
+        if (preg_match("/Column '([^']+)' cannot be null/i", $raw, $m)) {
+            $column = $m[1];
+
+            return "ستون «{$column}» در جدول users مقدار خالی (NULL) نمی‌پذیرد اما در فرم ساخت ادمین وجود ندارد. "
+                . "مقدار پیش‌فرض آن را در فایل config/installer.php داخل کلید admin_extra_fields مشخص کن، "
+                . "مثلاً: 'admin_extra_fields' => ['{$column}' => مقدار_مناسب].";
+        }
+
+        // الگوی رایج PostgreSQL: null value in column "role_id" violates not-null constraint
+        if (preg_match('/null value in column "([^"]+)"/i', $raw, $m)) {
+            $column = $m[1];
+
+            return "ستون «{$column}» در جدول users مقدار خالی (NULL) نمی‌پذیرد اما در فرم ساخت ادمین وجود ندارد. "
+                . "مقدار پیش‌فرض آن را در فایل config/installer.php داخل کلید admin_extra_fields مشخص کن، "
+                . "مثلاً: 'admin_extra_fields' => ['{$column}' => مقدار_مناسب].";
+        }
+
+        // سایر خطاهای احتمالی (مثلاً foreign key نامعتبر) بدون تشخیص دقیق ستون
+        return 'خطا در ذخیره حساب ادمین (احتمالاً یک ستون اجباری در جدول users مقداردهی نشده است): '
+            . $raw;
     }
 
     /**

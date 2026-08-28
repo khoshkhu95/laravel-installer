@@ -2,7 +2,8 @@
 
 @section('content')
     <div class="steps">
-        <span class="done"></span><span class="done"></span><span class="done"></span><span class="done"></span><span class="done"></span>
+        <span class="done"></span><span class="done"></span><span class="done"></span><span class="done"></span><span
+            class="done"></span>
     </div>
 
     <h1>ساخت حساب مدیر سیستم</h1>
@@ -24,9 +25,6 @@
 
         <label>ایمیل</label>
         <input type="email" name="email" value="{{ old('email') }}">
-
-         <label>موبایل</label>
-        <input type="mobile" name="mobile" value="{{ old('mobile') }}">
 
         <div class="grid-2">
             <div>
