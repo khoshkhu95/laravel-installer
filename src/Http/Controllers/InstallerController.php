@@ -414,11 +414,26 @@ class InstallerController extends Controller
             ]);
         }
 
-        // ساخت فایل قفل نصب
+        // ساخت فایل قفل نصب — این خط مهم‌تر از کش کردن کانفیگ است و نباید به آن وابسته باشد
         File::put(config('installer.lock_file'), now()->toDateTimeString());
 
-        Artisan::call('config:cache');
-        Artisan::call('route:cache');
+        // کش کردن کانفیگ/روت صرفاً یک بهینه‌سازی سرعت است، نه یک مرحله ضروری نصب.
+        // بعضی پکیج‌های شخص ثالث (مثل eloquent-sluggable) ممکن است مقداری از نوع
+        // Closure در کانفیگ خود داشته باشند که اصلاً قابل cache کردن نیست (محدودیت خود لاراول).
+        // اگر این اتفاق بیفتد نباید کل نصب متوقف شود؛ فقط از کش صرف‌نظر می‌کنیم.
+        try {
+            Artisan::call('config:cache');
+        } catch (\Throwable $e) {
+            // کانفیگ کش نشد (مثلاً به‌خاطر یک Closure غیرقابل‌سریالایز در یکی از پکیج‌ها)؛
+            // بی‌خطر است، فقط یعنی لاراول هر بار .env را مستقیم می‌خواند (کمی کندتر، نه خراب)
+            Artisan::call('config:clear');
+        }
+
+        try {
+            Artisan::call('route:cache');
+        } catch (\Throwable $e) {
+            Artisan::call('route:clear');
+        }
 
         Session::forget('installer');
 
