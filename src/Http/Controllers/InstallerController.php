@@ -339,33 +339,76 @@ class InstallerController extends Controller
     }
 
     /**
-     * مرحله ۵ / گام ۳: اجرای seeder ها پس از پایان تمام مایگریشن‌ها (در صورت فعال بودن در کانفیگ).
-     * سیدرهای سنگین هم می‌توانند بعداً به همین روش تکه‌تکه شوند؛ در این نسخه یکجا اجرا می‌شوند.
+     * مرحله ۵ / گام ۳: ساخت لیست کلاس‌های Seeder برای اجرا (از روی کانفیگ).
+     * فقط کلاس‌هایی که واقعاً وجود دارند (class_exists) نگه داشته می‌شوند تا اگر
+     * ماژولی حذف شده باشد یا کلاسش موجود نباشد، نصب متوقف نشود.
      */
-    public function migrateSeed(Request $request)
+    public function migrateSeedPrepare(Request $request)
+    {
+        if (! Session::has('installer.database')) {
+            return response()->json(['message' => 'اطلاعات دیتابیس یافت نشد.'], 422);
+        }
+
+        if (! config('installer.run_seeders')) {
+            Session::put('installer.pending_seeders', []);
+
+            return response()->json(['total' => 0]);
+        }
+
+        $classes = collect(config('installer.seeder_classes', []))
+            ->filter(fn ($class) => class_exists($class))
+            ->values()
+            ->all();
+
+        Session::put('installer.pending_seeders', $classes);
+
+        return response()->json(['total' => count($classes)]);
+    }
+
+    /**
+     * مرحله ۵ / گام ۴: اجرای فقط یک کلاس Seeder در هر درخواست — دقیقاً با همان
+     * فلسفه‌ی اجرای تکه‌تکه‌ی مایگریشن‌ها، تا Seeder سنگین یک ماژول باعث
+     * تایم‌اوت نشود. مناسب پروژه‌های ماژولار که چند Seeder مستقل دارند.
+     */
+    public function migrateSeedStep(Request $request)
     {
         @set_time_limit(120);
 
         $db = Session::get('installer.database');
+        $pending = Session::get('installer.pending_seeders', []);
 
         if (! $db) {
             return response()->json(['message' => 'اطلاعات دیتابیس یافت نشد.'], 422);
         }
 
-        try {
-            $this->applyRuntimeDatabaseConfig($db);
+        if (empty($pending)) {
+            Session::put('installer.migrated', true);
+            Session::forget(['installer.pending_migrations', 'installer.migrations_total', 'installer.pending_seeders']);
 
-            if (config('installer.run_seeders')) {
-                Artisan::call('db:seed', ['--force' => true]);
-            }
-        } catch (\Throwable $e) {
-            return response()->json(['message' => 'خطا در اجرای seeder: ' . $e->getMessage()], 500);
+            return response()->json(['done' => true]);
         }
 
-        Session::put('installer.migrated', true);
-        Session::forget(['installer.pending_migrations', 'installer.migrations_total']);
+        $class = array_shift($pending);
+        Session::put('installer.pending_seeders', $pending);
 
-        return response()->json(['seeded' => true]);
+        try {
+            $this->applyRuntimeDatabaseConfig($db);
+            Artisan::call('db:seed', ['--class' => $class, '--force' => true]);
+        } catch (\Throwable $e) {
+            // Seeder ناموفق را به ابتدای صف برمی‌گردانیم تا بعد از رفع مشکل دوباره تلاش شود
+            array_unshift($pending, $class);
+            Session::put('installer.pending_seeders', $pending);
+
+            return response()->json([
+                'message' => "خطا در اجرای Seeder «{$class}»: " . $e->getMessage(),
+            ], 500);
+        }
+
+        return response()->json([
+            'done' => false,
+            'seeder' => $class,
+            'remaining' => count($pending),
+        ]);
     }
 
     /**
@@ -408,6 +451,9 @@ class InstallerController extends Controller
 
         try {
             $userModel::create($payload);
+            if (method_exists($userModel,'assignRole')){
+                $userModel->assignRole(config('installer.admin_role_name'));
+            }
         } catch (QueryException $e) {
             return back()->withInput()->withErrors([
                 'admin' => $this->explainDatabaseError($e),
