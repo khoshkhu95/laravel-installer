@@ -48,6 +48,29 @@ php artisan vendor:publish --tag=installer-lang
 ```
 https://your-domain.com/installer
 ```
+## اجرای Seeder در پروژه‌های ماژولار
+
+برخلاف مایگریشن‌ها که فایل‌محورند و مسیرشان با الگوهای glob قابل کشف خودکار است،
+Seeder ها کلاس PHP هستند و namespace هر ماژول از روی مسیر فایلش قابل‌اعتماد قابل حدس زدن نیست.
+به همین دلیل باید هر Seeder را صریحاً در `config/installer.php` معرفی کنی:
+
+```php
+'seeder_classes' => [
+    \Database\Seeders\DatabaseSeeder::class,
+    \Modules\Blog\Database\Seeders\BlogDatabaseSeeder::class,
+    \Modules\Shop\Database\Seeders\ShopDatabaseSeeder::class,
+],
+```
+
+هر کلاس در این لیست، دقیقاً مثل مایگریشن‌ها، **در یک درخواست AJAX جداگانه** اجرا می‌شود
+(`/installer/migrate/seed/prepare` یک‌بار برای ساخت لیست، و `/installer/migrate/seed/step`
+به‌صورت حلقه‌ای برای اجرای هر کلاس) تا اگر Seeder یک ماژول داده‌ی زیادی وارد کند، تایم‌اوت رخ ندهد.
+
+اگر کلاسی در لیست وجود نداشته باشد (`class_exists()` false برگرداند — مثلاً ماژول حذف شده)،
+آن کلاس نادیده گرفته می‌شود و نصب متوقف نمی‌شود.
+
+برای غیرفعال‌کردن کامل اجرای seeder ها (مثلاً برای محیط‌هایی که فقط ساختار جدول لازم است،
+نه داده‌ی نمونه)، کافیست `'run_seeders' => false` را در کانفیگ تنظیم کنی.
 
 ## اجرای تکه‌تکه (Chunked) مایگریشن‌ها برای جلوگیری از Timeout
 

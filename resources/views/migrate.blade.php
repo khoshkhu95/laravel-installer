@@ -94,9 +94,25 @@
                     }
                 }
 
-                // گام ۳: اجرای seeder ها (در صورت فعال بودن)
-                setProgress(100, 'در حال اجرای seeder ها...');
-                await postJson('{{ route("installer.migrate.seed") }}');
+                // گام ۳: ساخت لیست کلاس‌های Seeder (شامل Seederهای ماژول‌ها طبق کانفیگ)
+                setProgress(100, 'در حال آماده‌سازی seeder ها...');
+                const seedPrepare = await postJson('{{ route("installer.migrate.seed.prepare") }}');
+                const seedTotal = seedPrepare.total;
+                let seedDone = 0;
+
+                // گام ۴: حلقه اجرای تک‌به‌تک هر کلاس Seeder. حتی اگر seedTotal صفر باشد
+                // باید این حلقه حداقل یک‌بار صدا زده شود، چون پرچم "نصب کامل شد" داخل
+                // همین اندپوینت (وقتی صف خالی است) ست می‌شود.
+                while (true) {
+                    const seedStep = await postJson('{{ route("installer.migrate.seed.step") }}');
+
+                    if (seedStep.done) {
+                        break;
+                    }
+
+                    seedDone++;
+                    setProgress(100, 'اجرای seeder ' + seedDone + ' از ' + seedTotal + ': ' + seedStep.seeder);
+                }
 
                 setProgress(100, 'مایگریشن با موفقیت انجام شد. در حال انتقال...');
 

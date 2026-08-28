@@ -24,7 +24,9 @@ Route::group([
     Route::get('/migrate', [InstallerController::class, 'migrateForm'])->name('migrate');
     Route::post('/migrate/prepare', [InstallerController::class, 'migratePrepare'])->name('migrate.prepare');
     Route::post('/migrate/step', [InstallerController::class, 'migrateStep'])->name('migrate.step');
-    Route::post('/migrate/seed', [InstallerController::class, 'migrateSeed'])->name('migrate.seed');
+    Route::post('/migrate/seed/prepare', [InstallerController::class, 'migrateSeedPrepare'])->name('migrate.seed.prepare');
+    Route::post('/migrate/seed/step', [InstallerController::class, 'migrateSeedStep'])->name('migrate.seed.step');
+
 
     Route::get('/admin', [InstallerController::class, 'adminForm'])->name('admin');
     Route::post('/admin', [InstallerController::class, 'adminStore'])->name('admin.store');
