@@ -5,10 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>نصب‌کننده - @yield('title', 'خوش‌آمدید')</title>
+    <link href="{{ asset('fonts/fonts.css') }}" rel="stylesheet">
     <style>
         * { box-sizing: border-box; }
         body {
-            font-family: Tahoma, Vazirmatn, sans-serif;
+            font-family: 'Vazirmatn',Tahoma, sans-serif;
             background: #0f172a;
             color: #e2e8f0;
             margin: 0;
