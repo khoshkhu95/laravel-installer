@@ -31,7 +31,7 @@ class InstallerController extends Controller
         $phpOk = version_compare(PHP_VERSION, $requiredPhp, '>=');
 
         $extensions = collect(config('installer.requirements.extensions'))
-            ->mapWithKeys(fn ($ext) => [$ext => extension_loaded($ext)]);
+            ->mapWithKeys(fn($ext) => [$ext => extension_loaded($ext)]);
 
         $allOk = $phpOk && ! $extensions->contains(false);
 
@@ -145,7 +145,7 @@ class InstallerController extends Controller
 
         // فقط مسیرهایی که واقعاً وجود دارند و پوشه هستند نگه داشته می‌شوند
         return collect($paths)
-            ->filter(fn ($path) => File::isDirectory($path))
+            ->filter(fn($path) => File::isDirectory($path))
             ->unique()
             ->values()
             ->all();
@@ -169,6 +169,10 @@ class InstallerController extends Controller
                 'username' => $data['db_username'],
                 'password' => $data['db_password'] ?? '',
                 'charset' => 'utf8mb4',
+                'collation' => 'utf8mb4_unicode_ci',
+                'engine' => 'InnoDB',
+                'prefix' => '',
+                'strict' => true,
             ],
         };
     }
@@ -356,7 +360,7 @@ class InstallerController extends Controller
         }
 
         $classes = collect(config('installer.seeder_classes', []))
-            ->filter(fn ($class) => class_exists($class))
+            ->filter(fn($class) => class_exists($class))
             ->values()
             ->all();
 
@@ -451,7 +455,7 @@ class InstallerController extends Controller
 
         try {
             $user = $userModel::create($payload);
-            if (method_exists($userModel,'assignRole')){
+            if (method_exists($userModel, 'assignRole')) {
                 $user->assignRole(config('installer.admin_role_name'));
             }
         } catch (QueryException $e) {
